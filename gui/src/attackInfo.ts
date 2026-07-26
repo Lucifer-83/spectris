@@ -7,11 +7,12 @@
    guarantee) — every meter carries a caveat about what it really
    depends on. Do not present them as precise.
 
-   👉 Set DOCS_BASE to your project's GitHub wiki/docs once it's up —
-   it's the single place that controls every "Read more" link.
+   👉 DOCS_BASE points at the repo's docs/ folder on GitHub — it's the
+   single place that controls every "Read more" link. Each tab maps to
+   one markdown page in docs/ (see page() below).
    ============================================================ */
 
-export const DOCS_BASE = "https://github.com/kalyanistudio/wifi-pentest-toolkit/wiki";
+export const DOCS_BASE = "https://github.com/Lucifer-83/spectris/blob/main/docs";
 
 export interface ToolRating {
   name: string;
@@ -33,7 +34,7 @@ export interface AttackInfo {
   caveat?: string;
 }
 
-const page = (slug: string) => `${DOCS_BASE}/${slug}`;
+const page = (slug: string) => `${DOCS_BASE}/${slug}.md`;
 
 export const ATTACK_INFO: Record<string, AttackInfo> = {
   setup: {
