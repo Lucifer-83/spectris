@@ -4,10 +4,19 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
+def _default_db_path() -> Path:
+    """The audit log must live in a per-user *writable* location. When installed
+    from a package the app sits under a read-only prefix (e.g. /opt/Spectris),
+    so writing the DB next to the binary fails with 'unable to open database
+    file'. Use the XDG data dir (honors XDG_DATA_HOME), falling back to
+    ~/.local/share/spectris/."""
+    base = os.environ.get("XDG_DATA_HOME")
+    root = Path(base) if base else Path.home() / ".local" / "share"
+    return root / "spectris" / "engagement_log.sqlite3"
+
+
 # Overridable so Docker can point the audit log at a persistent volume.
-DB_PATH = Path(
-    os.environ.get("WIFI_DB_PATH", Path(__file__).resolve().parent.parent / "engagement_log.sqlite3")
-)
+DB_PATH = Path(os.environ["WIFI_DB_PATH"]) if os.environ.get("WIFI_DB_PATH") else _default_db_path()
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS action_log (
@@ -23,6 +32,7 @@ CREATE TABLE IF NOT EXISTS action_log (
 
 @contextmanager
 def get_connection(db_path: Path = DB_PATH):
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
         conn.execute(SCHEMA)

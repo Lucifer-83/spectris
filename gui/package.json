@@ -45,7 +45,8 @@
       "category": "Network",
       "maintainer": "Spectris <noreply@spectris.app>",
       "synopsis": "Guided Wi-Fi penetration-testing toolkit (authorized use only)",
-      "description": "Spectris is a premium, guided Wi-Fi penetration-testing toolkit for authorized security assessments — scan & target, handshake capture, WPS Pixie Dust, deauth, offline PSK cracking, and evil-twin captive portals, all scope-gated and audit-logged."
+      "description": "Spectris is a premium, guided Wi-Fi penetration-testing toolkit for authorized security assessments — scan & target, handshake capture, WPS Pixie Dust, deauth, offline PSK cracking, and evil-twin captive portals, all scope-gated and audit-logged.",
+      "icon": "build/icons"
     },
     "deb": {
       "recommends": [
