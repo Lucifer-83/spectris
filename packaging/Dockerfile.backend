@@ -1,0 +1,35 @@
+# ============================================================
+#  Portable backend build
+#  Freeze the FastAPI backend inside Debian *bullseye* (glibc 2.31) so the
+#  resulting PyInstaller binary runs on any Linux with glibc >= 2.31 —
+#  Ubuntu 20.04 / 22.04 / 24.04, Debian 11+, Fedora, RHEL, Kali, etc.
+#
+#  Why: a PyInstaller binary needs the build machine's glibc *or newer*.
+#  Building on Kali (glibc 2.42) produced a binary that only ran on 2.42+
+#  systems. Building on bullseye (the oldest glibc we support) fixes that.
+#
+#  Build context is the repo root:
+#     docker build -f packaging/Dockerfile.backend -t spectris-backend-portable .
+# ============================================================
+FROM python:3.13-slim-bullseye
+
+# build-essential is a fallback for any dependency without a cp313 wheel
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends build-essential \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt pyinstaller wsproto
+
+COPY backend/run_server.py .
+COPY backend/app ./app
+
+# Mirrors gui/package.json "backend:freeze" exactly.
+RUN pyinstaller --noconfirm --name wifi-backend \
+      --collect-all uvicorn --collect-all websockets --collect-all wsproto \
+      --collect-submodules app --add-data app/wordlists:app/wordlists \
+      run_server.py
+
+# frozen output lives at /build/dist/wifi-backend (onedir)
