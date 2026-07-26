@@ -1,0 +1,60 @@
+# ============================================================
+# Spectris — .gitignore
+# ============================================================
+
+# ---- dependencies ----
+node_modules/
+**/node_modules/
+backend/.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# ---- build output ----
+gui/dist/
+gui/dist-electron/
+gui/release/
+backend/dist/
+backend/build/
+*.spec
+
+# ---- local backups / scratch ----
+.checkpoints/
+gui/build/logo-concepts/
+scratchpad/
+
+# ============================================================
+#  SENSITIVE — real engagement data, NEVER commit
+# ============================================================
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+backend/engagement_log.sqlite3
+cracked.json
+credentials*.json
+captured*.json
+# captured handshakes / hashes
+*.pcapng
+*.pcap
+*.cap
+*.hc22000
+*.22000
+*.hccapx
+
+# ---- generated images / screenshots in the repo root ----
+/Gemini_Generated_Image_*.png
+/bug.png
+/2026-*.png
+/screenshot*.png
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+
+# ---- Claude Code (tooling, not the product) ----
+.claude/

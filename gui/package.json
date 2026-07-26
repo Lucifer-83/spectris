@@ -1,0 +1,92 @@
+{
+  "name": "spectris",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Spectris — guided Wi-Fi penetration-testing toolkit for authorized security assessments",
+  "author": "Spectris",
+  "homepage": "https://github.com/kalyanistudio/spectris",
+  "type": "module",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "electron:build": "tsc -p electron/tsconfig.json && node -e \"require('fs').writeFileSync('dist-electron/package.json', JSON.stringify({type:'commonjs'}))\"",
+    "electron:watch": "tsc -p electron/tsconfig.json --watch",
+    "electron:dev": "concurrently -k \"vite\" \"npm run electron:build && npm run electron:watch\" \"wait-on tcp:5173 dist-electron/main.js && electron .\"",
+    "backend:freeze": "cd ../backend && .venv/bin/pyinstaller --noconfirm --name wifi-backend --collect-all uvicorn --collect-all websockets --collect-all wsproto --collect-submodules app --add-data app/wordlists:app/wordlists run_server.py",
+    "dist": "npm run build && npm run electron:build && npm run backend:freeze && electron-builder",
+    "dist:linux": "npm run build && npm run electron:build && npm run backend:freeze && electron-builder --linux AppImage",
+    "dist:packages": "npm run build && npm run electron:build && npm run backend:freeze && electron-builder --linux AppImage deb rpm"
+  },
+  "build": {
+    "appId": "com.wifipentest.toolkit",
+    "productName": "Spectris",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../backend/dist/wifi-backend",
+        "to": "backend"
+      }
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb",
+        "rpm"
+      ],
+      "category": "Network",
+      "maintainer": "Spectris <noreply@spectris.app>",
+      "synopsis": "Guided Wi-Fi penetration-testing toolkit (authorized use only)",
+      "description": "Spectris is a premium, guided Wi-Fi penetration-testing toolkit for authorized security assessments — scan & target, handshake capture, WPS Pixie Dust, deauth, offline PSK cracking, and evil-twin captive portals, all scope-gated and audit-logged."
+    },
+    "deb": {
+      "recommends": [
+        "aircrack-ng",
+        "hcxtools",
+        "hcxdumptool",
+        "reaver",
+        "bully",
+        "pixiewps",
+        "hostapd",
+        "dnsmasq",
+        "iw",
+        "wireless-tools",
+        "net-tools",
+        "hashcat"
+      ]
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.developer-tools"
+    }
+  },
+  "dependencies": {
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "concurrently": "^10.0.3",
+    "cross-env": "^10.1.0",
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3",
+    "oxlint": "^1.71.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1",
+    "wait-on": "^9.0.10"
+  }
+}

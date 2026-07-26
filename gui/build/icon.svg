@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5ba7ff"/><stop offset="1" stop-color="#2461e6"/></linearGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/><stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/></linearGradient>
+    <linearGradient id="gold" x1="0.2" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#ffe487"/><stop offset="0.5" stop-color="#f6b942"/><stop offset="1" stop-color="#e08e1c"/></linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="232" fill="url(#bg)"/>
+  <rect width="1024" height="1024" rx="232" fill="url(#gloss)"/>
+  <g fill="none" stroke="#eef5ff" stroke-width="54" stroke-linecap="round">
+    <path d="M352 486 A216 216 0 0 1 672 486"/>
+    <path d="M400 532 A150 150 0 0 1 624 532"/>
+    <path d="M448 578 A84 84 0 0 1 576 578"/>
+  </g>
+  <circle cx="512" cy="636" r="38" fill="#eef5ff"/>
+  <path d="M660 392 L576 552 L628 552 L582 686 L674 508 L620 508 Z" fill="url(#gold)" stroke="#b9761a" stroke-width="5" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,33 @@
+# WiFi Pentest Toolkit — Linux run configuration.
+#
+#   docker compose up --build
+#   # then open http://localhost:8000
+#
+# WiFi monitor-mode / AP attacks need direct access to the host's wireless
+# hardware, hence privileged + host networking + /dev. This works on Linux.
+# On Windows run inside WSL2 (with usbipd passing the adapter through) and use
+# this same file from the WSL2 shell. On macOS the UI/backend run but Docker
+# Desktop cannot pass a USB WiFi adapter into the VM, so real attacks won't work.
+
+services:
+  toolkit:
+    build: .
+    image: wifi-pentest-toolkit
+    container_name: wifi-pentest-toolkit
+    # host networking: exposes :8000 directly and gives raw access to wlan ifaces
+    network_mode: host
+    # required for monitor mode, hostapd, and iptables redirects
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    environment:
+      # keep the audit log on the persistent volume below
+      - WIFI_DB_PATH=/data/engagement_log.sqlite3
+    volumes:
+      - /dev:/dev                        # USB wireless adapter
+      - toolkit-data:/data               # persistent audit log
+    restart: unless-stopped
+
+volumes:
+  toolkit-data:

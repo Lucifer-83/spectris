@@ -1,0 +1,793 @@
+/* ============================================================
+   Spectris — WiFi security toolkit — design system
+   Dark "security console" theme. Tokens + reset + primitives.
+   ============================================================ */
+
+:root {
+  /* surfaces (darkest -> raised) */
+  --bg: #0a0d13;
+  --bg-grid: rgba(77, 157, 255, 0.06);
+  --surface: #11151d;
+  --surface-2: #161b25;
+  --surface-3: #1d2431;
+  --border: #232b39;
+  --border-strong: #33405433;
+  --border-hover: #3a475c;
+
+  /* text */
+  --text: #e7ecf4;
+  --text-dim: #9aa6ba;
+  --text-faint: #647084;
+
+  /* brand / accent (blue) */
+  --accent: #4d9dff;
+  --accent-strong: #2f7ff0;
+  --accent-ink: #04142e;
+  --accent-bg: rgba(77, 157, 255, 0.12);
+  --accent-border: rgba(77, 157, 255, 0.4);
+
+  /* semantic */
+  --ok: #5ab7ff;
+  --ok-bg: rgba(90, 183, 255, 0.13);
+  --ok-border: rgba(90, 183, 255, 0.38);
+  --warn: #fbbf24;
+  --warn-bg: rgba(251, 191, 36, 0.13);
+  --warn-border: rgba(251, 191, 36, 0.38);
+  --danger: #f87171;
+  --danger-bg: rgba(248, 113, 113, 0.13);
+  --danger-border: rgba(248, 113, 113, 0.4);
+  --info: #60a5fa;
+  --info-bg: rgba(96, 165, 250, 0.13);
+  --info-border: rgba(96, 165, 250, 0.38);
+
+  /* shape — softer, more rounded */
+  --r-sm: 9px;
+  --r: 13px;
+  --r-lg: 18px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 10px 30px -10px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 20px 60px -14px rgba(0, 0, 0, 0.7);
+
+  /* glass (Apple "liquid glass" frosted panels). --glass-alpha + --glass-blur-px
+     are driven live by the transparency slider (set on :root by JS). */
+  --glass-rgb: 20 26 36;
+  --glass-rgb-strong: 26 32 44;
+  --glass-alpha: 0.55;            /* the slider value — the "main background" transparency */
+  --glass-blur-px: 16px;
+  /* Floating windows track the slider but stay readable: mapped so slider=0 is
+     nearly solid (~0.89) and slider=100 is clearly see-through (~0.52) — a wide
+     enough spread that the transparency is obviously visible, while the heavy
+     backdrop-blur keeps text legible even at the transparent end. */
+  --panel-alpha: calc(0.30 + var(--glass-alpha) * 0.72);
+  --glass-bg: rgb(var(--glass-rgb) / var(--panel-alpha));
+  --glass-bg-strong: rgb(var(--glass-rgb-strong) / calc(var(--panel-alpha) + 0.06));
+  /* Fixed "chrome" (the pinned sidebar header) is much more opaque than a normal
+     panel so scrolled tools can't bleed through it as ghost text — no backdrop
+     blur is used there (it broke corner clipping), so opacity does the occluding. */
+  --chrome-bg: rgb(var(--glass-rgb-strong) / calc(var(--panel-alpha) + 0.38));
+  --glass-blur: saturate(180%) blur(var(--glass-blur-px));
+  --glass-hi: rgba(255, 255, 255, 0.08);   /* top specular edge */
+  --glass-lo: rgba(0, 0, 0, 0.22);          /* bottom inner shadow → depth */
+  /* vibrant backdrop blobs the glass frosts over (premium liquid-glass feel) —
+     turned up so the colour clearly shows through the frosted panels */
+  --blob-1: rgba(96, 165, 250, 0.45);
+  --blob-2: rgba(56, 132, 255, 0.40);
+  --blob-3: rgba(139, 92, 246, 0.36);
+  --glass-shadow: 0 10px 34px -10px rgba(0, 0, 0, 0.55),
+                  inset 0 1px 0 var(--glass-hi),
+                  inset 0 -1px 0 var(--glass-lo);
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* type */
+  --sans: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "JetBrains Mono", "SF Mono", Consolas, monospace;
+
+  color-scheme: dark;
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ---------- Light theme ----------
+   JS toggles .theme-light on <html> (for explicit Light, or Auto when the system
+   is light). Only the tokens that differ are redefined; everything else inherits
+   from :root. */
+:root.theme-light {
+  --bg: #e9edf4;
+  --bg-grid: rgba(15, 23, 42, 0.045);
+  --surface: #ffffff;
+  --surface-2: #f2f5f9;
+  --surface-3: #e7ecf3;
+  --border: #dde3ec;
+  --border-strong: rgba(15, 23, 42, 0.10);
+  --border-hover: #c2ccda;
+
+  --text: #0f172a;
+  --text-dim: #495467;
+  --text-faint: #8492a6;
+
+  --accent: #2563eb;
+  --accent-strong: #1d4ed8;
+  --accent-ink: #ffffff;
+  --accent-bg: rgba(37, 99, 235, 0.12);
+  --accent-border: rgba(37, 99, 235, 0.38);
+
+  --ok: #0284c7; --ok-bg: rgba(2, 132, 199, 0.12); --ok-border: rgba(2, 132, 199, 0.34);
+  --warn: #b45309; --warn-bg: rgba(180, 83, 9, 0.12); --warn-border: rgba(180, 83, 9, 0.32);
+  --danger: #dc2626; --danger-bg: rgba(220, 38, 38, 0.10); --danger-border: rgba(220, 38, 38, 0.32);
+  --info: #2563eb; --info-bg: rgba(37, 99, 235, 0.10); --info-border: rgba(37, 99, 235, 0.32);
+
+  --shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 12px 30px -12px rgba(15, 23, 42, 0.16);
+  --shadow-lg: 0 24px 60px -16px rgba(15, 23, 42, 0.24);
+
+  --glass-rgb: 255 255 255;
+  --glass-rgb-strong: 255 255 255;
+  --glass-hi: rgba(255, 255, 255, 0.75);
+  --glass-lo: rgba(15, 23, 42, 0.06);
+  --blob-1: rgba(96, 165, 250, 0.42);
+  --blob-2: rgba(37, 99, 235, 0.36);
+  --blob-3: rgba(139, 92, 246, 0.34);
+
+  color-scheme: light;
+}
+
+/* Banners / danger button / result values carry pale ink tuned for the DARK
+   theme; on the light theme that pale-on-light is washed out and unreadable, so
+   swap in the darker semantic ink. (Higher specificity → wins over the base rule
+   regardless of source order.) */
+:root.theme-light .banner--error { color: #b91c1c; }
+:root.theme-light .banner--warn  { color: #92400e; }
+:root.theme-light .banner--info  { color: #1e40af; }
+:root.theme-light .banner--ok    { color: #0369a1; }
+:root.theme-light .btn--danger   { color: #b91c1c; }
+:root.theme-light .result-hit .v { color: #0369a1; }
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+/* The drifting colour blobs + grid now live inside .app (see App.css) so they can
+   be clipped to the app's rounded corners. Only the drift keyframe stays global. */
+@keyframes drift {
+  from { transform: translate3d(-2%, -1%, 0) scale(1.05) rotate(0deg); }
+  to   { transform: translate3d(3%, 2%, 0) scale(1.14) rotate(7deg); }
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}
+
+/* Desktop build: the window is transparent so .app's rounded corners reveal the
+   desktop behind them. Keep everything above .app transparent; .app paints the
+   solid background itself. (In the browser build these stay opaque via --bg.) */
+:root.is-electron,
+:root.is-electron body,
+:root.is-electron #root {
+  background: transparent;
+}
+
+h1, h2, h3, h4 {
+  margin: 0;
+  color: var(--text);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+p { margin: 0; }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+code, .mono {
+  font-family: var(--mono);
+  font-size: 0.86em;
+}
+
+code {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 1px 6px;
+  color: var(--text);
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 20px; border: 2px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover { background: #4a5876; }
+
+/* ---------- Buttons ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font: inherit;
+  font-weight: 550;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 9px 15px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-hover);
+  background: var(--surface-3);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.18s var(--ease), border-color 0.18s var(--ease),
+    transform 0.12s var(--ease), box-shadow 0.18s var(--ease), opacity 0.14s;
+}
+.btn:hover { background: #232c3b; border-color: var(--border-hover); transform: translateY(-1px); }
+/* light theme: the dark hover fill above would make the button black with dark
+   text (unreadable) — use a light hover fill instead. */
+:root.theme-light .btn:hover { background: #d7dfea; border-color: var(--border-hover); }
+.btn:active { transform: translateY(0); }
+.btn:disabled { opacity: 0.42; cursor: not-allowed; transform: none; box-shadow: none; }
+.btn:disabled:active { transform: none; }
+
+.btn--primary {
+  background: linear-gradient(180deg, var(--accent), var(--accent-strong));
+  color: var(--accent-ink);
+  border-color: transparent;
+  font-weight: 650;
+  box-shadow: 0 4px 16px -6px var(--accent-border);
+}
+.btn--primary:hover {
+  background: linear-gradient(180deg, #43e0cc, var(--accent));
+  box-shadow: 0 8px 22px -6px var(--accent-border), 0 0 0 1px var(--accent-border);
+}
+
+.btn--danger {
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+  color: #fca5a5;
+}
+.btn--danger:hover { background: rgba(248, 113, 113, 0.2); }
+
+.btn--ghost { background: transparent; border-color: var(--border); }
+.btn--ghost:hover { background: var(--surface-2); }
+
+.btn--sm { padding: 6px 11px; font-size: 0.82rem; }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+/* ---------- Glass surface (shared) ---------- */
+.glass {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--glass-shadow);
+}
+
+/* ---------- Cards ---------- */
+.card {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--glass-shadow);
+  transition: border-color 0.22s var(--ease), box-shadow 0.22s var(--ease), transform 0.22s var(--ease);
+  animation: cardIn 0.4s var(--ease) both;
+}
+.card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-lg), inset 0 1px 0 var(--glass-hi), inset 0 -1px 0 var(--glass-lo);
+}
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.995); }
+  to { opacity: 1; transform: none; }
+}
+.card__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.card__head h3 { font-size: 0.98rem; }
+.card__head .icon { color: var(--accent); flex: none; }
+.card__sub { color: var(--text-dim); font-size: 0.84rem; margin-top: 2px; }
+.card__body { padding: 20px; }
+.card__body > * + * { margin-top: 14px; }
+
+/* ---------- Pills / badges ---------- */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-hover);
+  background: var(--surface-3);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.pill .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.pill--ok { color: var(--ok); background: var(--ok-bg); border-color: var(--ok-border); }
+.pill--warn { color: var(--warn); background: var(--warn-bg); border-color: var(--warn-border); }
+.pill--danger { color: var(--danger); background: var(--danger-bg); border-color: var(--danger-border); }
+.pill--accent { color: var(--accent); background: var(--accent-bg); border-color: var(--accent-border); }
+.pill--info { color: var(--info); background: var(--info-bg); border-color: var(--info-border); }
+
+.pill--live .dot { animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+/* ---------- Fields ---------- */
+.field { display: block; }
+.field__label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.field__hint { font-size: 0.78rem; color: var(--text-faint); margin-top: 5px; }
+.input {
+  display: block;
+  width: 100%;
+  font: inherit;
+  font-size: 0.92rem;
+  padding: 9px 12px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--r-sm);
+  transition: border-color 0.14s, box-shadow 0.14s;
+}
+.input::placeholder { color: var(--text-faint); }
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+.input--mono { font-family: var(--mono); font-size: 0.86rem; }
+
+/* ---------- Banners ---------- */
+.banner {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 11px 14px;
+  border-radius: var(--r);
+  font-size: 0.87rem;
+  border: 1px solid;
+  line-height: 1.45;
+}
+.banner .icon { flex: none; margin-top: 1px; }
+.banner--error { background: var(--danger-bg); border-color: var(--danger-border); color: #fca5a5; }
+.banner--warn { background: var(--warn-bg); border-color: var(--warn-border); color: #fcd77f; }
+.banner--info { background: var(--info-bg); border-color: var(--info-border); color: #a9cbff; }
+.banner--ok { background: var(--ok-bg); border-color: var(--ok-border); color: #a9d5ff; }
+
+/* ---------- Tables ---------- */
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+table.data {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.88rem;
+}
+table.data th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 11px 16px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+}
+table.data td {
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  vertical-align: middle;
+}
+table.data tbody tr:last-child td { border-bottom: none; }
+table.data tbody tr { transition: background 0.1s; }
+table.data tbody tr:hover { background: var(--surface-2); }
+table.data tr.is-selected { background: var(--accent-bg); }
+/* one clean accent bar on the row's left edge — NOT a line on every cell (which
+   looked like stray bars running down the selected row) */
+table.data tr.is-selected td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+
+/* ---------- Misc ---------- */
+.empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-faint);
+  font-size: 0.9rem;
+}
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 8px 18px; font-size: 0.9rem; }
+.kv dt { color: var(--text-dim); }
+.kv dd { margin: 0; color: var(--text); font-family: var(--mono); font-size: 0.85rem; word-break: break-all; white-space: pre-line; }
+
+.spinner {
+  width: 15px; height: 15px;
+  border: 2px solid var(--border-hover);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.muted { color: var(--text-dim); }
+.faint { color: var(--text-faint); }
+
+/* signal strength: bars + label */
+.signal { display: inline-flex; align-items: center; gap: 8px; }
+.bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 15px; }
+.bars i { width: 3px; border-radius: 1px; background: var(--border-hover); }
+.bars i:nth-child(1) { height: 5px; }
+.bars i:nth-child(2) { height: 8px; }
+.bars i:nth-child(3) { height: 11px; }
+.bars i:nth-child(4) { height: 15px; }
+.bars i.on { background: currentColor; }
+/* signal strength stays GREEN (good signal) even though the app accent is blue */
+.signal--ok { color: #34d399; }
+.signal--warn { color: var(--warn); }
+.signal--danger { color: var(--danger); }
+.signal--neutral { color: var(--text-faint); }
+:root.theme-light .signal--ok { color: #059669; }
+.signal__label { font-size: 0.82rem; color: var(--text); }
+
+/* native select reuses .input; add the chevron affordance */
+select.input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23647084' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 34px;
+  cursor: pointer;
+}
+
+/* terminal-style live output */
+.console {
+  background: #05070a;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 12px 14px;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: #a9d5ff;
+  max-height: 300px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.console:empty::after { content: "Waiting for output…"; color: var(--text-faint); }
+/* light theme: a near-black terminal box looks jarring — use a light surface with
+   dark-teal text so the log matches the rest of the light UI. */
+:root.theme-light .console {
+  background: #eef2f7;
+  color: #0369a1;
+  border-color: var(--border);
+}
+
+/* result callout (recovered PIN / PSK) */
+.result-hit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  padding: 14px 16px;
+  border-radius: var(--r);
+  background: var(--ok-bg);
+  border: 1px solid var(--ok-border);
+}
+.result-hit .k { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); }
+.result-hit .v { font-family: var(--mono); font-size: 1.05rem; color: #a9d5ff; font-weight: 600; word-break: break-all; }
+
+/* recovered-password banner — one consistent GREEN look across every module */
+.pw-hit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 18px;
+  border-radius: var(--r-lg);
+  background: rgba(52, 211, 153, 0.12);
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  border-left: 3px solid #34d399;
+}
+.pw-hit__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #34d399;
+}
+.pw-hit__target { color: var(--text-dim); font-weight: 500; }
+.pw-hit__value {
+  font-family: var(--mono);
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #34d399;
+  letter-spacing: 0.01em;
+  word-break: break-all;
+}
+:root.theme-light .pw-hit {
+  background: rgba(5, 150, 105, 0.1);
+  border-color: rgba(5, 150, 105, 0.35);
+  border-left-color: #059669;
+}
+:root.theme-light .pw-hit__label,
+:root.theme-light .pw-hit__value { color: #047857; }
+
+/* ---------- About page ---------- */
+.about-hero { display: flex; align-items: center; gap: 16px; }
+.about-hero__logo {
+  width: 60px;
+  height: 60px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: linear-gradient(150deg, var(--accent), var(--accent-strong));
+  color: var(--accent-ink);
+  box-shadow: 0 10px 26px -8px var(--accent-border);
+  flex: none;
+}
+.about-hero__title {
+  font-size: 1.7rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.about-hero__img {
+  width: 108px;
+  height: 108px;
+  flex: none;
+  /* the icon PNG is already a rounded tile on transparent — drop-shadow follows its
+     shape (a box-shadow would trace the square) */
+  filter: drop-shadow(0 12px 24px rgba(37, 99, 235, 0.55));
+}
+.about-hero__ver { font-size: 0.82rem; font-weight: 600; color: var(--accent); font-family: var(--mono); }
+.about-hero__tag { font-style: italic; color: var(--text-dim); margin-top: 3px; }
+.about-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.about-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--bg);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--r-sm);
+}
+.seg button {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 550;
+  padding: 6px 14px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.seg button:hover { color: var(--text); }
+.seg button.on { background: var(--accent-bg); color: var(--accent); }
+
+/* Auto-mode phase stepper */
+.auto-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.auto-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+.auto-step__dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  font-size: 11px;
+  flex: none;
+}
+.auto-step--pending .auto-step__dot { color: var(--text-faint); }
+.auto-step--active {
+  color: var(--accent);
+  font-weight: 600;
+}
+.auto-step--active .auto-step__dot {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+.auto-step--done { color: var(--ok); }
+.auto-step--done .auto-step__dot {
+  border-color: var(--ok-border);
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+/* ---------- Attack meta header ---------- */
+.attack-meta {
+  max-width: 1080px;
+  margin: 0 auto;
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 24px;
+  padding: 15px 20px;
+  border-radius: var(--r-lg);
+  border-left: 3px solid var(--accent);
+}
+.attack-meta__main { min-width: 260px; flex: 1; }
+.attack-meta__tagline { font-size: 0.98rem; font-weight: 550; color: var(--text); line-height: 1.4; }
+.attack-meta__doc {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent);
+  transition: gap 0.18s var(--ease), opacity 0.15s;
+}
+.attack-meta__doc:hover { text-decoration: none; gap: 9px; opacity: 0.85; }
+.attack-meta__doc .icon { transition: transform 0.18s var(--ease); }
+.attack-meta__doc:hover .icon { transform: translate(1px, -1px); }
+.attack-meta__side { display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
+
+/* success meter */
+.meter { display: flex; align-items: center; gap: 10px; }
+.meter__label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); font-weight: 600; white-space: nowrap; }
+.meter__track {
+  position: relative;
+  width: 132px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+.meter__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 10px -1px currentColor;
+  animation: meterFill 0.8s var(--ease) both;
+  transform-origin: left;
+}
+@keyframes meterFill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.meter--ok { color: var(--ok); }
+.meter--accent { color: var(--accent); }
+.meter--warn { color: var(--warn); }
+.meter--danger { color: var(--danger); }
+.meter__pct { font-size: 0.82rem; font-weight: 700; color: var(--text); min-width: 34px; text-align: right; }
+
+/* tool comparison chips */
+.tool-chips { display: flex; flex-wrap: wrap; gap: 7px; justify-content: flex-end; }
+.tool-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  transition: transform 0.15s var(--ease), border-color 0.15s;
+}
+.tool-chip:hover { transform: translateY(-1px); border-color: var(--border-hover); }
+.tool-chip--rec { color: var(--accent); background: var(--accent-bg); border-color: var(--accent-border); }
+.tool-chip__star { color: var(--warn); }
+.tool-chip__pct { opacity: 0.85; }
+
+@media (max-width: 640px) {
+  .attack-meta__side { align-items: flex-start; }
+  .tool-chips { justify-content: flex-start; }
+}
+
+/* ---------- Appearance (theme + glass slider) ---------- */
+.appearance { position: relative; }
+.appearance__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid var(--border-hover);
+  background: var(--surface-3);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, transform 0.12s var(--ease);
+}
+.appearance__btn:hover { color: var(--accent); transform: translateY(-1px); }
+.appearance__panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  width: 250px;
+  padding: 15px;
+  border-radius: var(--r);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  animation: viewIn 0.16s var(--ease) both;
+  /* stays CRISP regardless of the transparency slider so the controls you're
+     adjusting are always readable (fixed opacity, not --glass-alpha). */
+  background: rgb(var(--glass-rgb-strong) / 0.95);
+  border: 1px solid var(--border-hover);
+  box-shadow: var(--shadow-lg);
+}
+.appearance__title { font-size: 0.82rem; font-weight: 650; color: var(--text); }
+.appearance__row { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; font-weight: 600; color: var(--text-dim); }
+.appearance__hint { font-size: 0.72rem; color: var(--text-faint); margin: 0; line-height: 1.4; }
+
+.range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  outline: none;
+  cursor: pointer;
+}
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg);
+  box-shadow: 0 0 8px -1px var(--accent-border);
+  cursor: pointer;
+}
+.range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg);
+  cursor: pointer;
+}

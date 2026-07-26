@@ -1,0 +1,17 @@
+# build artifacts & deps (rebuilt inside the image)
+gui/node_modules
+gui/dist
+gui/dist-electron
+backend/.venv
+backend/static
+backend/**/__pycache__
+backend/.pytest_cache
+**/*.pyc
+
+# local state — never bake into the image
+backend/engagement_log.sqlite3
+
+# vcs / editor
+.git
+.gitignore
+**/.DS_Store
