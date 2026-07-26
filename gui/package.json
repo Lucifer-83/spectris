@@ -62,7 +62,9 @@
         "wireless-tools",
         "net-tools",
         "hashcat"
-      ]
+      ],
+      "afterInstall": "../packaging/deb/postinstall.sh",
+      "afterRemove": "../packaging/deb/postremove.sh"
     },
     "win": {
       "target": "nsis"
@@ -70,6 +72,10 @@
     "mac": {
       "target": "dmg",
       "category": "public.app-category.developer-tools"
+    },
+    "rpm": {
+      "afterInstall": "../packaging/deb/postinstall.sh",
+      "afterRemove": "../packaging/deb/postremove.sh"
     }
   },
   "dependencies": {

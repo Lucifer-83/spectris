@@ -8,6 +8,7 @@ is streamed to a log so the UI can show progress. The interface must be in
 monitor mode; the target BSSID is scope-checked by the API before start().
 """
 
+import re
 import subprocess
 import tempfile
 import time
@@ -32,6 +33,26 @@ def channel_arg(channel: str) -> str:
     except ValueError:
         return ch
     return f"{n}a" if n <= 14 else f"{n}b"
+
+
+def plain_channel(channel: str) -> str:
+    """Bare channel number for hcxdumptool <=6.x, which wants '11' — not the
+    band-lettered '11a' that 7.x requires."""
+    ch = channel.strip().lower().rstrip("abcde").strip()
+    return ch or channel.strip()
+
+
+def hcxdumptool_major() -> int | None:
+    """Major version of the installed hcxdumptool, or None if undetectable.
+    7.x rewrote the CLI (see start()); 6.x and older use a different one."""
+    try:
+        out = subprocess.run(
+            ["hcxdumptool", "-v"], capture_output=True, text=True, timeout=5
+        )
+    except Exception:
+        return None
+    m = re.search(r"hcxdumptool\s+(\d+)\.(\d+)", (out.stdout or "") + (out.stderr or ""))
+    return int(m.group(1)) if m else None
 
 
 @dataclass
@@ -67,13 +88,31 @@ class CaptureManager:
             output_pcapng = self._output_dir / "capture.pcapng"
             self._log_file = self._output_dir / "hcxdumptool.log"
             self._log_fh = open(self._log_file, "wb")
-            cmd = [
-                "sudo", "-n", "hcxdumptool",
-                "-i", interface,
-                "-w", str(output_pcapng),
-                "-c", channel_arg(channel),
-                "-t", "5",
-            ]
+            # hcxdumptool 7.x rewrote the CLI vs 6.x/older: output flag (-w vs -o)
+            # and channel format ("11a" vs "11"). Detect and adapt so a stock
+            # distro package (e.g. Ubuntu 22.04 ships 6.2.5) works out of the box.
+            major = hcxdumptool_major()
+            if major is not None and major < 7:
+                # 6.x/older. `--filterlist_ap=<bssid> --filtermode=2` restricts
+                # the attack to the scope-authorized target only — never the whole
+                # channel — keeping the engagement scoped.
+                cmd = [
+                    "sudo", "-n", "hcxdumptool",
+                    "-i", interface,
+                    "-o", str(output_pcapng),
+                    "-c", plain_channel(channel),
+                    f"--filterlist_ap={bssid}",
+                    "--filtermode=2",
+                ]
+            else:
+                # 7.x (the primary target).
+                cmd = [
+                    "sudo", "-n", "hcxdumptool",
+                    "-i", interface,
+                    "-w", str(output_pcapng),
+                    "-c", channel_arg(channel),
+                    "-t", "5",
+                ]
             try:
                 self._process = procs.popen(cmd, stdout=self._log_fh, stderr=subprocess.STDOUT)
             except FileNotFoundError as exc:
