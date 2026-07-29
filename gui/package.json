@@ -1,7 +1,7 @@
 {
   "name": "spectris",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Spectris — guided Wi-Fi penetration-testing toolkit for authorized security assessments",
   "author": "Spectris",
   "homepage": "https://github.com/kalyanistudio/spectris",
