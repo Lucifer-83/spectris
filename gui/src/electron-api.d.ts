@@ -1,6 +1,9 @@
 export {};
 
 declare global {
+  // Injected by Vite's `define` from package.json version (see vite.config.ts).
+  const __APP_VERSION__: string;
+
   interface Window {
     wifiPentestApp: {
       checkPrereqs: () => Promise<{ platform: string; wslInstalled: boolean; usbipdInstalled: boolean }>;

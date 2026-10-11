@@ -2,7 +2,7 @@ import { Card, Pill } from "../components/ui";
 import { IconChip, IconExternal, IconGithub, IconInfo, IconLinkedin, IconLock } from "../components/icons";
 import heroImg from "../assets/spectris-icon.png";
 
-const VERSION = "1.0.0";
+const VERSION = __APP_VERSION__;  // injected from package.json at build time (vite.config.ts)
 
 type PlatformStatus = "full" | "ok" | "limited";
 const PLATFORMS: { os: string; status: PlatformStatus; pill: string; detail: string }[] = [
