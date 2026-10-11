@@ -116,6 +116,21 @@ def test_mask_mode_rejects_empty_or_spaced_mask(tmp_path):
                        attack_mode="mask", mask="?d ?d")
 
 
+def test_mask_mode_rejects_leading_dash(tmp_path):
+    # a mask starting with '-' would be read by hashcat as an option through the
+    # trailing mask positional (argument injection) — must be rejected.
+    with pytest.raises(CrackCommandError):
+        _build_command("hashcat", "/caps/x.hc22000", "", None, "AA:BB:CC:DD:EE:FF", tmp_path,
+                       attack_mode="mask", mask="--outfile=/tmp/x")
+
+
+def test_mask_mode_allows_literal_prefix_mask(tmp_path):
+    # a legit mask mixing literal chars with charset tokens must still work.
+    cmd, _ = _build_command("hashcat", "/caps/x.hc22000", "", None, "AA:BB:CC:DD:EE:FF", tmp_path,
+                            attack_mode="mask", mask="Summer?d?d?d?d")
+    assert "Summer?d?d?d?d" in cmd
+
+
 def test_rules_mode_requires_existing_file(tmp_path):
     with pytest.raises(CrackCommandError):
         _build_command("hashcat", "/caps/x.hc22000", "/wl/rockyou.txt", None, "AA:BB:CC:DD:EE:FF", tmp_path,
@@ -188,6 +203,26 @@ def test_status_flags_exhausted_wordlist(tmp_path):
     state = mgr.status()
     assert state.psk is None
     assert state.exhausted is True
+
+
+def test_status_does_not_flag_exhausted_on_tool_error(tmp_path):
+    # a run that FAILED with a generic "not found" error (e.g. no OpenCL device)
+    # must NOT be reported as "wordlist exhausted" — that would tell the operator the
+    # password is definitively absent when the run actually errored out.
+    mgr = CrackManager()
+    mgr._engine = "hashcat"
+    mgr._outfile = tmp_path / "cracked.txt"  # never created -> no key
+    mgr._log_file = tmp_path / "crack.log"
+    mgr._log_file.write_text("clGetDeviceIDs(): CL_DEVICE_NOT_FOUND\nNo devices found/left.\n")
+
+    class _Done:
+        def poll(self):
+            return 1  # non-zero: the run errored, did not exhaust the keyspace
+    mgr._process = _Done()
+
+    state = mgr.status()
+    assert state.psk is None
+    assert state.exhausted is False  # was True before the fix (it matched "not found")
 
 
 # --- hashcat benchmark (Setup page speed check) ---------------------------

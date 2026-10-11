@@ -42,6 +42,12 @@ export function Action() {
             convertedRef.current = false; // retry on next tick
           }
         }
+        // If the capture process is no longer running (e.g. hcxdumptool exited),
+        // stop polling instead of hammering the backend forever.
+        if (!s.running && pollRef.current) {
+          window.clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       }

@@ -63,7 +63,14 @@ export function EvilTwin() {
     if (pollRef.current) return;
     pollRef.current = window.setInterval(async () => {
       try {
-        setStatus(await api.getEvilTwinStatus());
+        const s = await api.getEvilTwinStatus();
+        setStatus(s);
+        // The twin stops itself the moment the correct password is captured — once
+        // it reports not-running there's nothing left to poll, so stop hammering.
+        if (!s.running && pollRef.current) {
+          window.clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       }

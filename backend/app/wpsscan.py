@@ -14,6 +14,8 @@ import tempfile
 import time
 from pathlib import Path
 
+from app import loot, procs
+
 
 def parse_wash_json(raw: str) -> list[dict]:
     """wash -j emits WPS-capable APs as JSON. Parse defensively (array or
@@ -56,19 +58,23 @@ def wps_scan(interface: str, duration: int = 15) -> list[dict]:
     duration = max(5, min(duration, 60))
     tmp = Path(tempfile.mkdtemp(prefix="washscan_"))
     outfile = tmp / "wash.json"
-    with open(outfile, "wb") as fh:
-        try:
-            proc = subprocess.Popen(
-                ["sudo", "-n", "wash", "-i", interface, "-j"],
-                stdout=fh,
-                stderr=subprocess.DEVNULL,
-            )
-        except FileNotFoundError as exc:
-            raise RuntimeError("Required tool not found: wash") from exc
-        time.sleep(duration)
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-    return parse_wash_json(outfile.read_text(errors="replace"))
+    try:
+        with open(outfile, "wb") as fh:
+            try:
+                # wash runs as root via sudo; stopping it with a plain
+                # Popen.terminate() hits EPERM (the backend is non-root) and leaks
+                # the root process holding the interface. procs.popen/terminate
+                # signal the exact root PIDs correctly — see app.procs.
+                proc = procs.popen(
+                    ["sudo", "-n", "wash", "-i", interface, "-j"],
+                    stdout=fh,
+                    stderr=subprocess.DEVNULL,
+                )
+            except FileNotFoundError as exc:
+                raise RuntimeError("Required tool not found: wash") from exc
+            time.sleep(duration)
+            procs.terminate(proc)
+        return parse_wash_json(outfile.read_text(errors="replace"))
+    finally:
+        # wash.json is throwaway — parsed into memory above, nothing needs it after.
+        loot.cleanup(tmp)

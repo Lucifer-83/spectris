@@ -1,7 +1,13 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app.eviltwin import build_dnsmasq_conf, build_hostapd_conf
+from app.eviltwin import (
+    EvilTwinCommandError,
+    EvilTwinManager,
+    _validate_ap_params,
+    build_dnsmasq_conf,
+    build_hostapd_conf,
+)
 from app.main import app
 from app.portal import has_accepted, read_captured, record_submission, render_page, verify_password
 from app.scope import current_scope
@@ -63,6 +69,47 @@ def test_dnsmasq_conf_hijacks_all_dns_to_gateway():
     assert "dhcp-leasefile=/tmp/x.leases" in conf  # so we can count connected clients
 
 
+# --- hostapd AP-param validation (config-injection guard) -----------------
+
+def test_validate_ap_params_rejects_newline_ssid():
+    # a newline would let the SSID inject extra hostapd.conf directives
+    with pytest.raises(EvilTwinCommandError):
+        _validate_ap_params("evil\nwpa_passphrase=pwned", "6")
+
+
+def test_validate_ap_params_rejects_control_char_ssid():
+    with pytest.raises(EvilTwinCommandError):
+        _validate_ap_params("evil\x00ssid", "6")
+
+
+def test_validate_ap_params_rejects_oversize_ssid():
+    with pytest.raises(EvilTwinCommandError):
+        _validate_ap_params("A" * 33, "6")  # 802.11 SSID max is 32 bytes
+
+
+def test_validate_ap_params_rejects_non_numeric_channel():
+    with pytest.raises(EvilTwinCommandError):
+        _validate_ap_params("CorpGuest", "6; reboot")
+
+
+def test_validate_ap_params_accepts_normal():
+    _validate_ap_params("CorpGuest", "6")  # must not raise
+
+
+# --- client count ignores the dnsmasq IPv6 "duid" header line -------------
+
+def test_connected_clients_ignores_duid_line(tmp_path):
+    mgr = EvilTwinManager()
+    leases = tmp_path / "dnsmasq.leases"
+    leases.write_text(
+        "duid 00:01:00:01:aa:bb:cc:dd:ee:ff\n"  # IPv6 header — NOT a device
+        "1699999999 aa:bb:cc:dd:ee:01 10.0.0.11 phone 01:aa:bb:cc:dd:ee:01\n"
+        "1699999999 aa:bb:cc:dd:ee:02 10.0.0.12 laptop *\n"
+    )
+    mgr._leases_file = leases
+    assert mgr.connected_clients() == 2  # two real leases, duid line not counted
+
+
 # --- captive portal capture -----------------------------------------------
 
 def test_portal_records_and_reads_back_submissions(tmp_path):
@@ -93,6 +140,14 @@ def test_portal_page_asks_only_for_wifi_password_with_mfa_pretext():
 
 def test_portal_done_page_confirms_reconnect():
     assert "reconnected" in render_page("CorpGuest", done=True).lower()
+
+
+def test_portal_page_escapes_ssid():
+    # an SSID pasted from a scan can contain HTML metacharacters — they must be
+    # escaped so they can't break (or inject into) the portal page.
+    page = render_page('<script>alert(1)</script>')
+    assert "<script>alert(1)</script>" not in page
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in page
 
 
 # --- password verification / accept logic ---------------------------------

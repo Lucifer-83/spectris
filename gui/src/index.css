@@ -576,6 +576,26 @@ select.input {
   color: var(--text-dim);
   font-weight: 600;
 }
+.about-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--glass-bg-strong);
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: border-color 0.15s, transform 0.15s, color 0.15s;
+}
+.about-link:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+.about-link .icon { flex: none; }
 
 .seg {
   display: inline-flex;

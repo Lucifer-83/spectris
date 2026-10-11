@@ -33,8 +33,15 @@ CREATE TABLE IF NOT EXISTS action_log (
 @contextmanager
 def get_connection(db_path: Path = DB_PATH):
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path)
+    # timeout + WAL + busy_timeout: FastAPI runs these sync endpoints in a
+    # threadpool, so several log writes/reads can land at once. WAL lets a reader
+    # and a writer coexist, and the busy timeout waits out a brief lock instead of
+    # failing with "database is locked". (PRAGMAs are cheap and idempotent.)
+    conn = sqlite3.connect(db_path, timeout=5.0)
     try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("PRAGMA busy_timeout=5000")
         conn.execute(SCHEMA)
         conn.commit()
         yield conn

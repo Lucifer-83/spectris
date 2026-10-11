@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Lock
 
-from app import procs
+from app import loot, procs
 
 ATTACKS = ("pixie", "pin")
 ENGINES = ("reaver", "bully")
@@ -138,6 +138,7 @@ class WpsManager:
         self._process: subprocess.Popen | None = None
         self._log_fh = None
         self._log_file: Path | None = None
+        self._tmp_dir: Path | None = None
         self._interface: str | None = None
         self._bssid: str | None = None
         self._attack: str | None = None
@@ -149,14 +150,21 @@ class WpsManager:
                 raise RuntimeError("A WPS attack is already running")
             cmd = _build_command(interface, bssid, channel, attack, engine)
             _park_channel(interface, channel)
+            loot.cleanup(self._tmp_dir)  # clear the PREVIOUS attack's log temp dir
             tmp_dir = Path(tempfile.mkdtemp(prefix="wifiwps_"))
+            self._tmp_dir = tmp_dir
             self._log_file = tmp_dir / "wps.log"
             self._log_fh = open(self._log_file, "wb")
             try:
                 self._process = procs.popen(cmd, stdout=self._log_fh, stderr=subprocess.STDOUT)
             except FileNotFoundError as exc:
                 self._log_fh.close()
+                self._log_fh = None
                 raise WpsCommandError(f"Required tool not found: {cmd[2]}") from exc
+            except Exception:  # any other spawn failure — don't leak the log handle
+                self._log_fh.close()
+                self._log_fh = None
+                raise
             self._interface = interface
             self._bssid = bssid
             self._attack = attack
@@ -170,8 +178,16 @@ class WpsManager:
                 self._log_fh.close()
                 self._log_fh = None
 
+    def cleanup_tmp(self) -> None:
+        """Delete this attack's log temp dir. Called on shutdown; during a session
+        the dir is kept so status() can read the final output/diagnostic after
+        stop(), and is cleared on the next start()."""
+        loot.cleanup(self._tmp_dir)
+        self._tmp_dir = None
+
     def is_running(self) -> bool:
-        return self._process is not None and self._process.poll() is None
+        p = self._process  # snapshot: stop() may null it between the check and poll()
+        return p is not None and p.poll() is None
 
     def _read_output(self) -> str:
         if not self._log_file or not self._log_file.exists():

@@ -101,8 +101,10 @@ export function Crack() {
   };
 
   const stop = async () => {
-    await api.stopCrack();
-    setStatus(await api.getCrackStatus());
+    // Guard the network calls: if stop/status rejects, still clear the poll and
+    // reset the UI instead of leaving an unhandled rejection + a "stuck running" view.
+    await api.stopCrack().catch(() => {});
+    setStatus(await api.getCrackStatus().catch(() => null));
     if (pollRef.current) {
       window.clearInterval(pollRef.current);
       pollRef.current = null;

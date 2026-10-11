@@ -1,9 +1,28 @@
-import { app, BrowserWindow, ipcMain, shell, Menu, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, shell, Menu, dialog, session } from "electron";
 import { spawn, execFile, ChildProcessWithoutNullStreams } from "node:child_process";
 import path from "node:path";
 
 const isDev = !app.isPackaged;
 const BACKEND_PORT = 8000;
+
+// Content-Security-Policy for the renderer (defense in depth). The app loads a
+// local bundle and talks ONLY to the localhost backend, so lock everything to
+// 'self' + that backend: no remote script/style/image/connection can load, the
+// page can't be reframed, and <base> can't be hijacked. script/style keep
+// 'unsafe-inline' because Vite's bundle and the app's inline styles need it;
+// the high-value restrictions are connect-src (no remote exfiltration),
+// object-src 'none', and base-uri/frame-ancestors.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "connect-src 'self' http://127.0.0.1:8000 http://localhost:8000 ws://localhost:5173 ws://127.0.0.1:5173",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "frame-ancestors 'none'",
+].join("; ");
 
 let backendProcess: ChildProcessWithoutNullStreams | null = null;
 let mainWindow: BrowserWindow | null = null;
@@ -24,17 +43,30 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true, // explicit — don't rely on the Electron-version default
     },
   });
 
   // "Read more" (and any other http/https link) must open in the user's real
-  // browser, not a chromeless Electron window.
+  // browser, not a chromeless Electron window. Anything else (file:, data:,
+  // blob:, …) is DENIED — never open a new in-app window for it.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("http://") || url.startsWith("https://")) {
       shell.openExternal(url);
-      return { action: "deny" };
     }
-    return { action: "allow" };
+    return { action: "deny" };
+  });
+
+  // Never let the top frame navigate away from the local bundle / dev server —
+  // a dropped or injected link can't turn the privileged renderer into a browser.
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    const ok = isDev
+      ? url.startsWith("http://localhost:5173")
+      : url.startsWith("file://");
+    if (!ok) {
+      event.preventDefault();
+      if (url.startsWith("http://") || url.startsWith("https://")) shell.openExternal(url);
+    }
   });
 
   if (isDev) {
@@ -191,6 +223,12 @@ ipcMain.handle("dialog:pickWordlist", async () => {
 app.whenReady().then(() => {
   // No native application menu (the File/Edit/View/Window bar is useless here).
   Menu.setApplicationMenu(null);
+  // Stamp the CSP onto every response the renderer loads.
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: { ...details.responseHeaders, "Content-Security-Policy": [CSP] },
+    });
+  });
   startBackend().catch((err) => console.error("backend auto-start failed:", err));
   createWindow();
 });

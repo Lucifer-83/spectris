@@ -136,11 +136,21 @@ def _assert_ssid_scope_or_raise(ssid: str) -> None:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 
 
+def _assert_valid_interface(interface: str, action: str) -> None:
+    """Reject a malformed interface name at the API boundary (before it reaches any
+    root tool's argv) with a clean 400."""
+    if not adapter.is_valid_interface_name(interface):
+        detail = f"Invalid interface name: {interface!r}"
+        logging_db.log_action(action, interface, "rejected", detail=detail)
+        raise HTTPException(status_code=400, detail=detail)
+
+
 def _assert_monitor_mode_or_raise(interface: str, action: str) -> None:
     """reaver/aireplay/airodump can only inject on a monitor-mode interface. On a
     managed one they run but never associate — the "can't associate with the AP"
     symptom. Catch it up front with a clear, actionable 400 instead of a silent
     failure the operator has to decode from the live output."""
+    _assert_valid_interface(interface, action)
     try:
         mode = adapter.interface_mode(interface)
     except adapter.AdapterCommandError:
@@ -170,6 +180,7 @@ def get_adapter_status():
 
 @app.post("/adapter/kill-interferers")
 def post_kill_interferers(req: KillInterferersRequest):
+    _assert_valid_interface(req.interface, "kill-interferers")
     try:
         output = adapter.kill_interfering_processes(req.interface)
         logging_db.log_action("kill-interferers", req.interface, "success", detail=output[:500])
@@ -181,6 +192,7 @@ def post_kill_interferers(req: KillInterferersRequest):
 
 @app.post("/adapter/monitor-mode")
 def post_monitor_mode(req: MonitorModeRequest):
+    _assert_valid_interface(req.interface, "monitor-mode")
     try:
         mode = adapter.set_monitor_mode(req.interface, req.enable)
         logging_db.log_action("monitor-mode", req.interface, "success", detail=mode)
@@ -229,6 +241,15 @@ def _cleanup_all() -> dict:
     ):
         try:
             stop()
+        except Exception:  # noqa: BLE001 - cleanup must never raise
+            pass
+    # sweep each tool's throwaway temp dir (loot was already copied out by stop()).
+    for cleanup in (
+        scan_manager.cleanup_tmp, capture_manager.cleanup_tmp, wps_manager.cleanup_tmp,
+        deauth_manager.cleanup_tmp, crack_manager.cleanup_tmp, eviltwin_manager.cleanup_tmp,
+    ):
+        try:
+            cleanup()
         except Exception:  # noqa: BLE001 - cleanup must never raise
             pass
     reverted = []

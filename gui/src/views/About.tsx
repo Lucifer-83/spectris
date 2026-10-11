@@ -1,5 +1,5 @@
 import { Card, Pill } from "../components/ui";
-import { IconChip, IconInfo, IconLock } from "../components/icons";
+import { IconChip, IconExternal, IconGithub, IconInfo, IconLinkedin, IconLock } from "../components/icons";
 import heroImg from "../assets/spectris-icon.png";
 
 const VERSION = "1.0.0";
@@ -150,6 +150,20 @@ export function About() {
           A FastAPI backend drives the root-level wireless tools; a React + Electron desktop app is the guided
           UI. All attacks are scope-gated and audit-logged by design.
         </p>
+      </Card>
+
+      <Card title="Author" icon={<IconInfo size={18} />}>
+        <p>
+          Built by <strong>Tejas Patil</strong> — security practitioner. Connect or check out more of my work:
+        </p>
+        <div className="about-chips" style={{ marginTop: 10 }}>
+          <a className="about-link" href="https://github.com/Lucifer-83" target="_blank" rel="noreferrer">
+            <IconGithub size={16} /> GitHub <IconExternal size={12} />
+          </a>
+          <a className="about-link" href="https://www.linkedin.com/in/tejas-cybersec" target="_blank" rel="noreferrer">
+            <IconLinkedin size={16} /> LinkedIn <IconExternal size={12} />
+          </a>
+        </div>
       </Card>
     </div>
   );

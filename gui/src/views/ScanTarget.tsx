@@ -113,7 +113,7 @@ export function ScanTarget() {
   };
 
   const stop = async () => {
-    await api.stopScan();
+    await api.stopScan().catch(() => {});
     setRunning(false);
     stopPolling();
   };

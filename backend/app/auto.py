@@ -98,8 +98,12 @@ class AutoManager:
             deadline = time.monotonic() + capture_seconds
             while time.monotonic() < deadline and not self._stop_event.is_set():
                 try:
-                    deauth_manager.start(interface, bssid, deauth_count, None, channel)
-                    logging_db.log_action("auto-deauth", bssid, "success", detail=f"count={deauth_count}")
+                    # only fire a fresh burst if the previous one has finished —
+                    # otherwise start() raises "already running" (swallowed below),
+                    # which logged a misleading success and skipped silently.
+                    if not deauth_manager.is_running():
+                        deauth_manager.start(interface, bssid, deauth_count, None, channel)
+                        logging_db.log_action("auto-deauth", bssid, "success", detail=f"count={deauth_count}")
                 except Exception:  # deauth is best-effort; capture can still land a PMKID
                     pass
                 for _ in range(6):

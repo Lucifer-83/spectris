@@ -30,6 +30,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Lock
 
+from app import loot
+
 ENGINES = ("hashcat", "aircrack")
 ATTACK_MODES = ("wordlist", "rules", "mask")
 
@@ -63,9 +65,10 @@ _HC_SPEED_RE = re.compile(r"Speed\.#[*\d]+\.+:\s*([\d.]+\s*\w?H/s)")
 _HC_ETA_RE = re.compile(r"Time\.Estimated\.+:.*?\(([^)]+)\)")
 # aircrack progress: "[00:01:23] 45678/14344385 keys tested (1234.56 k/s)"
 _AC_PROGRESS_RE = re.compile(r"(\d+)/(\d+)\s+keys tested\s*\(([\d.]+)\s*k/s\)")
-# a mask is hashcat charset tokens (?l ?u ?d ?s ?a ?b) plus literals — reject
-# whitespace so a stray value can't smuggle extra argv-looking tokens.
-_MASK_RE = re.compile(r"^[^\s]{1,64}$")
+# a mask is hashcat charset tokens (?l ?u ?d ?s ?a ?b) plus literals. Reject
+# whitespace AND a leading '-' so a value like "--outfile=/path" can't smuggle an
+# extra hashcat option in through the trailing mask positional (argument injection).
+_MASK_RE = re.compile(r"^[^\s-][^\s]{0,63}$")
 
 
 @dataclass
@@ -268,6 +271,7 @@ class CrackManager:
         self._process: subprocess.Popen | None = None
         self._log_fh = None
         self._log_file: Path | None = None
+        self._tmp_dir: Path | None = None
         self._outfile: Path | None = None
         self._engine: str | None = None
         self._attack_mode: str | None = None
@@ -292,7 +296,9 @@ class CrackManager:
             if engine == "aircrack" and (not pcapng or not Path(pcapng).is_file()):
                 raise CrackCommandError(f"Capture file not found: {pcapng} — run a capture first")
 
+            loot.cleanup(self._tmp_dir)  # clear the PREVIOUS run's throwaway temp dir
             tmp_dir = Path(tempfile.mkdtemp(prefix="wificrack_"))
+            self._tmp_dir = tmp_dir
             cmd, outfile = _build_command(
                 engine, hash_file, wordlist, pcapng, bssid, tmp_dir, attack_mode, rules, mask
             )
@@ -302,7 +308,12 @@ class CrackManager:
                 self._process = subprocess.Popen(cmd, stdout=self._log_fh, stderr=subprocess.STDOUT)
             except FileNotFoundError as exc:
                 self._log_fh.close()
+                self._log_fh = None
                 raise CrackCommandError(f"Required tool not found: {cmd[0]}") from exc
+            except Exception:  # any other spawn failure — don't leak the log handle
+                self._log_fh.close()
+                self._log_fh = None
+                raise
             self._outfile = outfile
             self._engine = engine
             self._attack_mode = attack_mode
@@ -323,8 +334,16 @@ class CrackManager:
                 self._log_fh.close()
                 self._log_fh = None
 
+    def cleanup_tmp(self) -> None:
+        """Delete this run's throwaway temp dir (crack.log + outfile). Called on
+        shutdown; during a session the dir is kept so status() can read the result
+        and is cleared on the next start()."""
+        loot.cleanup(self._tmp_dir)
+        self._tmp_dir = None
+
     def is_running(self) -> bool:
-        return self._process is not None and self._process.poll() is None
+        p = self._process  # snapshot: stop() may null it between the check and poll()
+        return p is not None and p.poll() is None
 
     def _read_output(self) -> str:
         if not self._log_file or not self._log_file.exists():
@@ -343,8 +362,12 @@ class CrackManager:
         raw = self._read_output()
         psk = self._recovered_psk(raw)
         finished = not self.is_running() and self._process is not None
+        # Only a genuine "ran through the whole keyspace" signal counts as
+        # exhausted. The old code also matched any "not found" in the output, which
+        # a tool/driver error ("OpenCL device not found", "file not found") would
+        # trip — making a FAILED run look like "password definitely not in list".
         exhausted = bool(finished and psk is None and (
-            "Exhausted" in raw or "Passphrase not in dictionary" in raw or "not found" in raw.lower()
+            "Exhausted" in raw or "Passphrase not in dictionary" in raw
         ))
         pct, speed, eta = _parse_progress(self._engine, raw)
         lines = [ln for ln in raw.splitlines() if ln.strip()]

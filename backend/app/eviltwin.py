@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Lock, Thread
 
-from app import procs
+from app import loot, procs
 from app.portal import has_accepted, portal_command, read_captured, verify_password
 
 GATEWAY_IP = "10.0.0.1"
@@ -49,6 +49,22 @@ def _tail(path: Path, n: int = 3) -> str:
         return " ".join(lines[-n:])[:300]
     except OSError:
         return ""
+
+
+def _validate_ap_params(ssid: str, channel: str) -> None:
+    """hostapd.conf is a line-oriented key=value file we build by interpolation. A
+    real SSID is up to 32 bytes of arbitrary data (operators often paste it from a
+    scan), so a newline or control char in it would inject/break hostapd directives.
+    Reject those, enforce the 32-byte SSID limit, and require a numeric channel
+    (it's also handed to `iw set channel`)."""
+    if not ssid:
+        raise EvilTwinCommandError("SSID is required")
+    if len(ssid.encode("utf-8")) > 32:
+        raise EvilTwinCommandError("SSID is too long (max 32 bytes for an 802.11 SSID)")
+    if any(ord(c) < 0x20 or ord(c) == 0x7F for c in ssid):
+        raise EvilTwinCommandError("SSID contains a newline or control character — not a valid 802.11 SSID")
+    if not str(channel).strip().isdigit():
+        raise EvilTwinCommandError(f"Channel must be a number, got '{channel}'")
 
 
 def build_hostapd_conf(interface: str, ssid: str, channel: str) -> str:
@@ -116,6 +132,7 @@ class EvilTwinManager:
         self._creds_file: Path | None = None
         self._deauth_log: Path | None = None
         self._leases_file: Path | None = None
+        self._tmp_dir: Path | None = None
         self._watch: Thread | None = None
         self._stop_flag = False
 
@@ -137,12 +154,15 @@ class EvilTwinManager:
         with self._lock:
             if any(p.poll() is None for p in self._procs):
                 raise RuntimeError("An evil-twin AP is already running")
+            _validate_ap_params(ssid, channel)  # reject injection/bad SSID before writing hostapd.conf
             self._procs = []
             self._deauth_proc = None
             self._hostapd_proc = None
             self._deauth_log = None
             self._stop_flag = False
+            loot.cleanup(self._tmp_dir)  # clear the PREVIOUS run's config/log temp dir
             tmp = Path(tempfile.mkdtemp(prefix="wifiet_"))
+            self._tmp_dir = tmp
             hostapd_conf = tmp / "hostapd.conf"
             dnsmasq_conf = tmp / "dnsmasq.conf"
             self._creds_file = tmp / "captured.jsonl"
@@ -321,13 +341,27 @@ class EvilTwinManager:
             self._deauth_proc = None
             self._hostapd_proc = None
             self._teardown_network(self._interface)
+        # Archive the captured credentials (the loot) to ~/.spectris/loot. COPY,
+        # not move: status()/the stop endpoint still read creds right after. The
+        # config/log temp dir is cleared on the next start().
+        loot.preserve([self._creds_file], "eviltwin-creds")
+
+    def cleanup_tmp(self) -> None:
+        """Delete this run's config/log temp dir. Called on shutdown; during a
+        session it is kept so status() can read leases/creds after stop(), and is
+        cleared on the next start()."""
+        loot.cleanup(self._tmp_dir)
+        self._tmp_dir = None
 
     def is_running(self) -> bool:
-        # hostapd staying alive is what defines "AP is up"
-        return self._hostapd_proc is not None and self._hostapd_proc.poll() is None
+        # hostapd staying alive is what defines "AP is up". Snapshot the handle:
+        # stop() may null it between the None-check and poll().
+        p = self._hostapd_proc
+        return p is not None and p.poll() is None
 
     def _deauth_running(self) -> bool:
-        return self._deauth_proc is not None and self._deauth_proc.poll() is None
+        p = self._deauth_proc
+        return p is not None and p.poll() is None
 
     def _deauth_error(self) -> str | None:
         """If a deauth was requested but its process died before we captured the
@@ -354,7 +388,14 @@ class EvilTwinManager:
         if not self._leases_file or not self._leases_file.exists():
             return 0
         try:
-            return sum(1 for ln in self._leases_file.read_text(errors="replace").splitlines() if ln.strip())
+            # A real DHCP lease line starts with the expiry epoch (a number):
+            # "<epoch> <mac> <ip> <hostname> <clientid>". dnsmasq also writes a
+            # leading "duid ..." line when IPv6 is in play — don't count that as a
+            # device (it would inflate the client count by one).
+            return sum(
+                1 for ln in self._leases_file.read_text(errors="replace").splitlines()
+                if ln.strip() and ln.split(None, 1)[0].isdigit()
+            )
         except OSError:
             return 0
 

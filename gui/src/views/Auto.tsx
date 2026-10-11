@@ -95,8 +95,8 @@ export function Auto() {
   };
 
   const stop = async () => {
-    await api.stopAuto();
-    setStatus(await api.getAutoStatus());
+    await api.stopAuto().catch(() => {});
+    setStatus(await api.getAutoStatus().catch(() => null));
     if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = null; }
   };
 

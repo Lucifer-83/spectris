@@ -14,6 +14,25 @@ class AdapterCommandError(Exception):
     pass
 
 
+# A Linux interface name: short, no path/space/shell metacharacters. Guards the
+# interface value that flows into `ip`/`iw` argv (belt-and-suspenders against a
+# leading-dash or junk value reaching a root tool).
+_IFACE_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]{1,15}$")
+
+
+def is_valid_interface_name(name: str) -> bool:
+    return bool(name) and bool(_IFACE_NAME_RE.match(name)) and not name.startswith("-")
+
+
+def is_wireless_interface(name: str) -> bool:
+    """True only if `name` is a real wireless interface (`iw dev` lists it). Used to
+    refuse reconfiguring a non-wireless NIC (e.g. downing the host's wired 'eth0')."""
+    try:
+        return any(i.name == name for i in list_interfaces())
+    except AdapterCommandError:
+        return False
+
+
 def _run(cmd: list[str]) -> str:
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
@@ -222,6 +241,13 @@ def set_monitor_mode(interface: str, enable: bool) -> str:
     (internet) stays up, unlike `airmon-ng check kill`. When disabling we hand it
     back. Either way we then VERIFY the mode actually took and fail loudly if not,
     instead of reporting a success that silently reverted."""
+    if not is_valid_interface_name(interface):
+        raise AdapterCommandError(f"Invalid interface name: {interface!r}")
+    if not is_wireless_interface(interface):
+        raise AdapterCommandError(
+            f"{interface} is not a wireless interface — refusing to reconfigure it "
+            "(this would disrupt a wired/other NIC, not a Wi-Fi adapter)."
+        )
     target_mode = "monitor" if enable else "managed"
     # NOTE: we do NOT block the internal adapter — with only one external card the
     # operator legitimately needs the built-in one as a second adapter (e.g. evil
@@ -277,6 +303,10 @@ def kill_interfering_processes(interface: str) -> str:
     the host's built-in Wi-Fi vanish from the network menu and can wedge the
     driver. Works on any adapter (releasing the internal one drops that card's
     internet, but it's reversible — `managed yes` on disable restores it)."""
+    if not is_valid_interface_name(interface):
+        raise AdapterCommandError(f"Invalid interface name: {interface!r}")
+    if not is_wireless_interface(interface):
+        raise AdapterCommandError(f"{interface} is not a wireless interface — refusing to touch it.")
     _run_optional(["sudo", "-n", "nmcli", "dev", "set", interface, "managed", "no"])
     _run_optional(["sudo", "-n", "nmcli", "dev", "disconnect", interface])
     warn = " (this is your internal/internet card — it drops that Wi-Fi until you disable monitor)" if is_internal(interface) else ""

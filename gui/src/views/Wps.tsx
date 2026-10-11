@@ -61,8 +61,8 @@ export function Wps() {
   };
 
   const stop = async () => {
-    await api.stopWps();
-    setStatus(await api.getWpsStatus());
+    await api.stopWps().catch(() => {});
+    setStatus(await api.getWpsStatus().catch(() => null));
     if (pollRef.current) {
       window.clearInterval(pollRef.current);
       pollRef.current = null;
@@ -123,7 +123,7 @@ export function Wps() {
           </Field>
 
           <div className="toolbar">
-            <Button variant="primary" onClick={start} disabled={running} icon={<IconPlay size={16} />}>
+            <Button variant="primary" onClick={start} disabled={running || !target.bssid || !target.interfaceName} icon={<IconPlay size={16} />}>
               Start attack
             </Button>
             <Button variant="danger" onClick={stop} disabled={!running} icon={<IconStop size={16} />}>

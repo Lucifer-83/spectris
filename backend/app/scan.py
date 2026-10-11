@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
 
-from app import procs
+from app import loot, procs
 
 
 @dataclass
@@ -28,12 +28,15 @@ class ScanManager:
         self._lock = Lock()
         self._process: subprocess.Popen | None = None
         self._output_prefix: Path | None = None
+        self._tmp_dir: Path | None = None
 
     def start(self, interface: str) -> None:
         with self._lock:
             if self._process and self._process.poll() is None:
                 raise RuntimeError("A scan is already running")
+            loot.cleanup(self._tmp_dir)  # clear the PREVIOUS scan's CSV temp dir
             tmp_dir = Path(tempfile.mkdtemp(prefix="wifiscan_"))
+            self._tmp_dir = tmp_dir
             self._output_prefix = tmp_dir / "scan"
             self._process = procs.popen(
                 [
@@ -51,8 +54,16 @@ class ScanManager:
             procs.terminate(self._process)  # root-owned (sudo) → killed as root
             self._process = None
 
+    def cleanup_tmp(self) -> None:
+        """Delete this scan's CSV temp dir. Called on shutdown; during a session the
+        dir is kept so results() can still return the AP list after stop(), and is
+        cleared on the next start()."""
+        loot.cleanup(self._tmp_dir)
+        self._tmp_dir = None
+
     def is_running(self) -> bool:
-        return self._process is not None and self._process.poll() is None
+        p = self._process  # snapshot: stop() may null it between the check and poll()
+        return p is not None and p.poll() is None
 
     def results(self) -> list[AccessPoint]:
         if not self._output_prefix:

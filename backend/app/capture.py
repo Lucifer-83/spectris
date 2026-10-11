@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Lock
 
-from app import procs
+from app import loot, procs
 
 
 class CaptureCommandError(Exception):
@@ -82,6 +82,7 @@ class CaptureManager:
         with self._lock:
             if self._process and self._process.poll() is None:
                 raise RuntimeError("A capture is already running")
+            loot.cleanup(self._output_dir)  # clear the PREVIOUS capture's temp dir
             self._output_dir = Path(tempfile.mkdtemp(prefix="wificapture_"))
             self._last_probe = 0.0
             self._last_count = 0
@@ -117,7 +118,12 @@ class CaptureManager:
                 self._process = procs.popen(cmd, stdout=self._log_fh, stderr=subprocess.STDOUT)
             except FileNotFoundError as exc:
                 self._log_fh.close()
+                self._log_fh = None
                 raise CaptureCommandError("Required tool not found: hcxdumptool") from exc
+            except Exception:  # any other spawn failure — don't leak the log handle
+                self._log_fh.close()
+                self._log_fh = None
+                raise
             self._interface = interface
             self._bssid = bssid
             return output_pcapng
@@ -129,9 +135,23 @@ class CaptureManager:
             if self._log_fh:
                 self._log_fh.close()
                 self._log_fh = None
+        # Archive the captured handshake (the loot) to ~/.spectris/loot. We COPY,
+        # not move: the originals stay in the temp dir so Convert/Crack can still
+        # read them this session. The temp dir itself is cleared on the next start.
+        pcapng = self.output_pcapng()
+        hc = pcapng.with_suffix(".hc22000") if pcapng else None
+        loot.preserve([pcapng, hc], "handshake")
+
+    def cleanup_tmp(self) -> None:
+        """Delete this capture's temp dir. Called on shutdown; during a session the
+        dir is kept (Convert/Crack read the .pcapng in place) and cleared on the
+        next start()."""
+        loot.cleanup(self._output_dir)
+        self._output_dir = None
 
     def is_running(self) -> bool:
-        return self._process is not None and self._process.poll() is None
+        p = self._process  # snapshot: stop() may null it between the check and poll()
+        return p is not None and p.poll() is None
 
     def output_pcapng(self) -> Path | None:
         if not self._output_dir:
@@ -197,6 +217,8 @@ class CaptureManager:
                 "No crackable hashes in the capture yet — no handshake/PMKID captured. "
                 "Keep the capture running (a deauth helps) and try again."
             )
+        # archive both the raw capture and the crackable hashes (loot)
+        loot.preserve([pcapng, hash_file], "handshake")
         return hash_file
 
     def status(self) -> CaptureState:

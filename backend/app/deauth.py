@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Lock
 
-from app import procs
+from app import loot, procs
 
 
 class DeauthCommandError(Exception):
@@ -44,6 +44,7 @@ class DeauthManager:
         self._process: subprocess.Popen | None = None
         self._log_fh = None
         self._log_file: Path | None = None
+        self._tmp_dir: Path | None = None
         self._interface: str | None = None
         self._bssid: str | None = None
         self._client: str | None = None
@@ -80,7 +81,9 @@ class DeauthManager:
                 cmd += ["-c", client]
             cmd += ["--ignore-negative-one", interface]
 
+            loot.cleanup(self._tmp_dir)  # clear the PREVIOUS run's log temp dir
             tmp_dir = Path(tempfile.mkdtemp(prefix="wifideauth_"))
+            self._tmp_dir = tmp_dir
             self._log_file = tmp_dir / "deauth.log"
             # Attach the tool to a pseudo-terminal so it LINE-buffers its output.
             # aireplay-ng (like most stdio tools) block-buffers when stdout is a
@@ -137,8 +140,15 @@ class DeauthManager:
             self._process = None
             self._log_fh = None
 
+    def cleanup_tmp(self) -> None:
+        """Delete this run's log temp dir. Called on shutdown; during a session it
+        is kept so status() can read the output after stop(), cleared on next start()."""
+        loot.cleanup(self._tmp_dir)
+        self._tmp_dir = None
+
     def is_running(self) -> bool:
-        return self._process is not None and self._process.poll() is None
+        p = self._process  # snapshot: stop() may null it between the check and poll()
+        return p is not None and p.poll() is None
 
     def status(self) -> DeauthState:
         raw = ""
